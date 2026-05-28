@@ -2,11 +2,14 @@ import os
 import sqlite3
 from datetime import datetime
 
+from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request, session
 from flask_cors import CORS
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
 DB_PATH = os.path.join(BASE_DIR, "todo.db")
 MYSQL_LOG_ENABLED = os.getenv("MYSQL_LOG_ENABLED", "1") == "1"
 MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
@@ -18,7 +21,7 @@ MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "todo_log")
 mysql_warning_shown = False
 
 app = Flask(__name__)
-app.secret_key = "todo-app-secret-key"
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "todo-app-secret-key")
 CORS(app, supports_credentials=True)
 
 
