@@ -81,9 +81,9 @@ def init_mysql_log_db():
         cur.execute(
             """
             CREATE TABLE IF NOT EXISTS query_log (
-                type VARCHAR(20) NOT NULL,
-                sql TEXT NOT NULL,
-                dateime DATETIME NOT NULL
+                `type` VARCHAR(20) NOT NULL,
+                `sql` TEXT NOT NULL,
+                `dateime` DATETIME NOT NULL
             )
             """
         )
@@ -111,7 +111,7 @@ def log_query(sql, params=()):
         conn = get_mysql_connection()
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO query_log (type, sql, dateime) VALUES (%s, %s, %s)",
+            "INSERT INTO query_log (`type`, `sql`, `dateime`) VALUES (%s, %s, %s)",
             (get_sql_type(sql), build_log_sql(sql, params), now_string()),
         )
         conn.commit()

@@ -6,9 +6,42 @@ Todo 기능에서 발생하는 SQLite 쿼리는 별도 MySQL 서버의 `query_lo
 ## 1. MySQL 서버 설정
 
 MySQL 서버 VM에서 먼저 로그 DB와 계정을 생성합니다.
+아래 명령은 `mysql_log.sql` 파일이 있는 프로젝트 폴더에서 실행해야 합니다.
 
 ```bash
-mysql -u root -p < mysql_log.sql
+cd <프로젝트명>
+sudo mysql < mysql_log.sql
+```
+
+Ubuntu MySQL은 기본적으로 `root` 계정이 비밀번호 로그인 대신 `auth_socket` 인증을 쓰는 경우가 많습니다.
+이때 `mysql -u root -p`를 사용하면 아래 오류가 날 수 있으므로 `sudo mysql`을 사용합니다.
+
+```text
+ERROR 1698 (28000): Access denied for user 'root'@'localhost'
+```
+
+직접 MySQL 콘솔에서 실행하려면 아래처럼 접속한 뒤 SQL 파일을 실행합니다.
+
+```bash
+sudo mysql
+```
+
+```sql
+SOURCE /프로젝트경로/mysql_log.sql;
+```
+
+예시:
+
+```sql
+SOURCE /home/user/hancom5-midterm-test/mysql_log.sql;
+```
+
+MySQL 서버 VM에 프로젝트 파일이 없다면 저장소를 클론하거나 `mysql_log.sql` 파일만 복사한 뒤 실행합니다.
+
+```bash
+git clone <저장소 주소>
+cd <프로젝트명>
+sudo mysql < mysql_log.sql
 ```
 
 `mysql_log.sql`이 생성하는 항목:
@@ -237,5 +270,5 @@ dateime: 2026-05-28 10:00:00
 로그 확인 쿼리:
 
 ```sql
-SELECT type, sql, dateime FROM query_log ORDER BY dateime DESC;
+SELECT `type`, `sql`, `dateime` FROM query_log ORDER BY `dateime` DESC;
 ```
