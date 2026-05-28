@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Todo 관리</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+</head>
+<body>
+    <main class="container">
+        <section id="login-section" class="panel">
+            <h1 id="auth-title">Todo 로그인</h1>
+            <form id="login-form">
+                <label for="uid">아이디</label>
+                <input type="text" id="uid" name="uid" value="admin" autocomplete="username">
+
+                <label for="upwd">비밀번호</label>
+                <input type="password" id="upwd" name="upwd" value="admin1234" autocomplete="current-password">
+
+                <button type="submit">로그인</button>
+            </form>
+            <form id="signup-form" class="hidden">
+                <label for="signup-uname">이름</label>
+                <input type="text" id="signup-uname" name="uname" autocomplete="name">
+
+                <label for="signup-uid">아이디</label>
+                <input type="text" id="signup-uid" name="uid" autocomplete="username">
+
+                <label for="signup-upwd">비밀번호</label>
+                <input type="password" id="signup-upwd" name="upwd" autocomplete="new-password">
+
+                <button type="submit">회원가입</button>
+            </form>
+            <button type="button" id="auth-toggle" class="link-button">회원가입</button>
+            <p id="login-message" class="message"></p>
+        </section>
+
+        <section id="todo-section" class="panel hidden">
+            <div class="topbar">
+                <div>
+                    <h1>할 일 관리</h1>
+                    <p id="user-info"></p>
+                </div>
+                <button type="button" id="logout-btn" class="secondary">로그아웃</button>
+            </div>
+
+            <form id="todo-form" class="todo-form">
+                <input type="text" id="title" name="title" placeholder="할 일을 입력하세요">
+                <button type="submit">추가</button>
+            </form>
+
+            <p id="todo-message" class="message"></p>
+            <ul id="todo-list"></ul>
+        </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
