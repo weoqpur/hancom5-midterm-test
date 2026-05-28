@@ -19,6 +19,8 @@ MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "todo_logger_pw")
 MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "todo_log")
 
 mysql_warning_shown = False
+mysql_last_error = None
+mysql_last_success = None
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "todo-app-secret-key")
@@ -89,23 +91,33 @@ def init_mysql_log_db():
         )
         conn.commit()
         conn.close()
+        remember_mysql_success("MySQL log table ready")
     except Exception as exc:
         show_mysql_warning(exc)
 
 
 def show_mysql_warning(exc):
-    global mysql_warning_shown
+    global mysql_last_error, mysql_warning_shown
+
+    mysql_last_error = str(exc)
 
     if mysql_warning_shown:
         return
 
     mysql_warning_shown = True
-    print(f"[MySQL log disabled] {exc}")
+    print(f"[MySQL log error] {exc}")
+
+
+def remember_mysql_success(message):
+    global mysql_last_error, mysql_last_success
+
+    mysql_last_error = None
+    mysql_last_success = message
 
 
 def log_query(sql, params=()):
     if not MYSQL_LOG_ENABLED:
-        return
+        return False
 
     try:
         conn = get_mysql_connection()
@@ -116,8 +128,11 @@ def log_query(sql, params=()):
         )
         conn.commit()
         conn.close()
+        remember_mysql_success("Last query logged")
+        return True
     except Exception as exc:
         show_mysql_warning(exc)
+        return False
 
 
 def execute_sql(cur, sql, params=()):
@@ -298,6 +313,54 @@ def me():
     return jsonify({"logged_in": True, "uid": session["uid"], "uname": session["uname"]})
 
 
+@app.route("/mysql-log-status", methods=["GET"])
+def mysql_log_status():
+    auth_error = login_required()
+    if auth_error:
+        return auth_error
+
+    status = {
+        "enabled": MYSQL_LOG_ENABLED,
+        "host": MYSQL_HOST,
+        "port": MYSQL_PORT,
+        "user": MYSQL_USER,
+        "database": MYSQL_DATABASE,
+        "last_success": mysql_last_success,
+        "last_error": mysql_last_error,
+    }
+
+    if not MYSQL_LOG_ENABLED:
+        status["connected"] = False
+        status["message"] = "MYSQL_LOG_ENABLED=0 상태입니다."
+        return jsonify(status)
+
+    try:
+        conn = get_mysql_connection()
+        cur = conn.cursor()
+        if request.args.get("test") == "1":
+            cur.execute(
+                "INSERT INTO query_log (`type`, `sql`, `dateime`) VALUES (%s, %s, %s)",
+                ("select", "SELECT 1 -- mysql log status test", now_string()),
+            )
+            conn.commit()
+
+        cur.execute("SELECT COUNT(*) FROM query_log")
+        count = cur.fetchone()[0]
+        conn.close()
+        status["connected"] = True
+        status["log_count"] = count
+        status["test_insert"] = request.args.get("test") == "1"
+        status["message"] = "MySQL 로그 DB에 정상 접속했습니다."
+        remember_mysql_success("MySQL status check passed")
+    except Exception as exc:
+        show_mysql_warning(exc)
+        status["connected"] = False
+        status["last_error"] = str(exc)
+        status["message"] = "MySQL 로그 DB 접속에 실패했습니다."
+
+    return jsonify(status)
+
+
 @app.route("/todos", methods=["GET"])
 def get_todos():
     # 현재 로그인한 사용자의 Todo만 조회한다.
@@ -416,4 +479,9 @@ def delete_todo(todo_id):
 
 if __name__ == "__main__":
     init_db()
+    print(
+        "[MySQL log config] "
+        f"enabled={MYSQL_LOG_ENABLED}, host={MYSQL_HOST}, port={MYSQL_PORT}, "
+        f"user={MYSQL_USER}, database={MYSQL_DATABASE}"
+    )
     app.run(host="0.0.0.0", port=5000, debug=True)
