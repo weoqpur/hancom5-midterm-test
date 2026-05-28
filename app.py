@@ -8,6 +8,14 @@ from flask_cors import CORS
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "todo.db")
+MYSQL_LOG_ENABLED = os.getenv("MYSQL_LOG_ENABLED", "1") == "1"
+MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
+MYSQL_PORT = int(os.getenv("MYSQL_PORT", "3306"))
+MYSQL_USER = os.getenv("MYSQL_USER", "todo_logger")
+MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "todo_logger_pw")
+MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "todo_log")
+
+mysql_warning_shown = False
 
 app = Flask(__name__)
 app.secret_key = "todo-app-secret-key"
@@ -18,6 +26,104 @@ def now_string():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def compact_sql(sql):
+    return " ".join(sql.split())
+
+
+def quote_sql_value(value):
+    if value is None:
+        return "NULL"
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    if isinstance(value, (int, float)):
+        return str(value)
+
+    escaped = str(value).replace("'", "''")
+    return f"'{escaped}'"
+
+
+def build_log_sql(sql, params=()):
+    # SQLite의 ? 파라미터를 실제 값으로 바꿔 MySQL 로그에 남길 SQL 문자열을 만든다.
+    logged_sql = compact_sql(sql)
+    for param in params:
+        logged_sql = logged_sql.replace("?", quote_sql_value(param), 1)
+    return logged_sql
+
+
+def get_sql_type(sql):
+    # 로그 type 필드는 쿼리의 첫 단어만 소문자로 저장한다.
+    return compact_sql(sql).split(" ", 1)[0].lower()
+
+
+def get_mysql_connection():
+    import mysql.connector
+
+    return mysql.connector.connect(
+        host=MYSQL_HOST,
+        port=MYSQL_PORT,
+        user=MYSQL_USER,
+        password=MYSQL_PASSWORD,
+        database=MYSQL_DATABASE,
+        charset="utf8mb4",
+    )
+
+
+def init_mysql_log_db():
+    if not MYSQL_LOG_ENABLED:
+        return
+
+    try:
+        conn = get_mysql_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS query_log (
+                type VARCHAR(20) NOT NULL,
+                sql TEXT NOT NULL,
+                dateime DATETIME NOT NULL
+            )
+            """
+        )
+        conn.commit()
+        conn.close()
+    except Exception as exc:
+        show_mysql_warning(exc)
+
+
+def show_mysql_warning(exc):
+    global mysql_warning_shown
+
+    if mysql_warning_shown:
+        return
+
+    mysql_warning_shown = True
+    print(f"[MySQL log disabled] {exc}")
+
+
+def log_query(sql, params=()):
+    if not MYSQL_LOG_ENABLED:
+        return
+
+    try:
+        conn = get_mysql_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO query_log (type, sql, dateime) VALUES (%s, %s, %s)",
+            (get_sql_type(sql), build_log_sql(sql, params), now_string()),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as exc:
+        show_mysql_warning(exc)
+
+
+def execute_sql(cur, sql, params=()):
+    # SQLite 쿼리를 실행한 뒤 같은 쿼리 정보를 MySQL 로그 테이블에 저장한다.
+    cur.execute(sql, params)
+    log_query(sql, params)
+    return cur
+
+
 def get_db():
     # SQLite 결과를 dict처럼 다루기 위해 Row factory를 설정한다.
     conn = sqlite3.connect(DB_PATH)
@@ -26,11 +132,14 @@ def get_db():
 
 
 def init_db():
+    init_mysql_log_db()
+
     # 앱 최초 실행 시 필요한 SQLite 테이블과 기본 계정을 자동 생성한다.
     conn = get_db()
     cur = conn.cursor()
 
-    cur.execute(
+    execute_sql(
+        cur,
         """
         CREATE TABLE IF NOT EXISTS member (
             idx INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,7 +151,8 @@ def init_db():
         """
     )
 
-    cur.execute(
+    execute_sql(
+        cur,
         """
         CREATE TABLE IF NOT EXISTS todolist (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,9 +164,10 @@ def init_db():
         """
     )
 
-    cur.execute("SELECT idx FROM member WHERE uid = ?", ("admin",))
+    execute_sql(cur, "SELECT idx FROM member WHERE uid = ?", ("admin",))
     if cur.fetchone() is None:
-        cur.execute(
+        execute_sql(
+            cur,
             """
             INSERT INTO member (uname, uid, upwd, datetime)
             VALUES (?, ?, ?, ?)
@@ -103,7 +214,8 @@ def login():
 
     conn = get_db()
     cur = conn.cursor()
-    cur.execute(
+    execute_sql(
+        cur,
         "SELECT idx, uname, uid FROM member WHERE uid = ? AND upwd = ?",
         (uid, upwd),
     )
@@ -141,7 +253,8 @@ def signup():
     cur = conn.cursor()
 
     try:
-        cur.execute(
+        execute_sql(
+            cur,
             """
             INSERT INTO member (uname, uid, upwd, datetime)
             VALUES (?, ?, ?, ?)
@@ -191,7 +304,8 @@ def get_todos():
 
     conn = get_db()
     cur = conn.cursor()
-    cur.execute(
+    execute_sql(
+        cur,
         """
         SELECT id, title, uid, completed, datetime
         FROM todolist
@@ -222,7 +336,8 @@ def add_todo():
     created_at = now_string()
     conn = get_db()
     cur = conn.cursor()
-    cur.execute(
+    execute_sql(
+        cur,
         """
         INSERT INTO todolist (title, uid, completed, datetime)
         VALUES (?, ?, ?, ?)
@@ -257,7 +372,8 @@ def complete_todo(todo_id):
 
     conn = get_db()
     cur = conn.cursor()
-    cur.execute(
+    execute_sql(
+        cur,
         """
         UPDATE todolist
         SET completed = 1
@@ -284,7 +400,7 @@ def delete_todo(todo_id):
 
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("DELETE FROM todolist WHERE id = ? AND uid = ?", (todo_id, session["uid"]))
+    execute_sql(cur, "DELETE FROM todolist WHERE id = ? AND uid = ?", (todo_id, session["uid"]))
     conn.commit()
     changed = cur.rowcount
     conn.close()
