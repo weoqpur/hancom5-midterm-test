@@ -1,7 +1,9 @@
 $(function () {
+    // 새로고침 후에도 세션이 남아 있으면 바로 Todo 화면을 보여준다.
     checkLogin();
 
     $("#auth-toggle").on("click", function () {
+        // 로그인 폼과 회원가입 폼을 한 화면에서 전환한다.
         const signupMode = $("#signup-form").hasClass("hidden");
         $("#login-message").text("");
 
@@ -21,6 +23,7 @@ $(function () {
     $("#login-form").on("submit", function (event) {
         event.preventDefault();
 
+        // 로그인 API로 JSON 데이터를 전송한다.
         $.ajax({
             url: "/login",
             method: "POST",
@@ -44,6 +47,7 @@ $(function () {
     $("#signup-form").on("submit", function (event) {
         event.preventDefault();
 
+        // 회원가입 성공 시 서버가 세션을 생성하므로 바로 Todo 목록을 불러온다.
         $.ajax({
             url: "/signup",
             method: "POST",
@@ -66,6 +70,7 @@ $(function () {
     });
 
     $("#logout-btn").on("click", function () {
+        // 서버 세션을 삭제하고 로그인 화면으로 돌아간다.
         $.ajax({
             url: "/logout",
             method: "POST",
@@ -84,6 +89,7 @@ $(function () {
     $("#todo-form").on("submit", function (event) {
         event.preventDefault();
 
+        // 입력한 할 일을 POST /todos로 추가한다.
         $.ajax({
             url: "/todos",
             method: "POST",
@@ -102,6 +108,7 @@ $(function () {
     });
 
     $("#todo-list").on("click", ".complete-btn", function () {
+        // 동적으로 생성된 완료 버튼은 이벤트 위임으로 처리한다.
         const id = $(this).closest("li").data("id");
 
         $.ajax({
@@ -119,6 +126,7 @@ $(function () {
     });
 
     $("#todo-list").on("click", ".delete-btn", function () {
+        // 동적으로 생성된 삭제 버튼은 이벤트 위임으로 처리한다.
         const id = $(this).closest("li").data("id");
 
         $.ajax({
@@ -137,6 +145,7 @@ $(function () {
 });
 
 function checkLogin() {
+    // 현재 로그인 상태를 확인한다.
     $.ajax({
         url: "/me",
         method: "GET",
@@ -150,12 +159,14 @@ function checkLogin() {
 }
 
 function showTodo(member) {
+    // 인증 영역을 숨기고 Todo 영역을 표시한다.
     $("#login-section").addClass("hidden");
     $("#todo-section").removeClass("hidden");
     $("#user-info").text(member.uname + " (" + member.uid + ")");
 }
 
 function loadTodos() {
+    // GET /todos로 목록을 가져와 화면에 렌더링한다.
     $.ajax({
         url: "/todos",
         method: "GET",
@@ -170,6 +181,7 @@ function loadTodos() {
 }
 
 function renderTodos(todos) {
+    // 서버에서 받은 Todo 배열을 li 요소로 변환한다.
     const $list = $("#todo-list");
     $list.empty();
 
@@ -202,6 +214,7 @@ function renderTodos(todos) {
 }
 
 function escapeHtml(value) {
+    // 사용자가 입력한 제목이 HTML로 실행되지 않도록 이스케이프한다.
     return String(value)
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")

@@ -19,12 +19,14 @@ def now_string():
 
 
 def get_db():
+    # SQLite 결과를 dict처럼 다루기 위해 Row factory를 설정한다.
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
 def init_db():
+    # 앱 최초 실행 시 필요한 SQLite 테이블과 기본 계정을 자동 생성한다.
     conn = get_db()
     cur = conn.cursor()
 
@@ -67,12 +69,14 @@ def init_db():
 
 
 def login_required():
+    # Todo API는 로그인한 사용자만 접근할 수 있다.
     if "uid" not in session:
         return jsonify({"success": False, "message": "로그인이 필요합니다."}), 401
     return None
 
 
 def row_to_todo(row):
+    # SQLite의 0/1 값을 JSON boolean 값으로 변환한다.
     return {
         "id": row["id"],
         "title": row["title"],
@@ -89,6 +93,7 @@ def index():
 
 @app.route("/login", methods=["POST"])
 def login():
+    # JSON으로 받은 uid/upwd를 member 테이블에서 확인한다.
     data = request.get_json(silent=True) or {}
     uid = data.get("uid", "").strip()
     upwd = data.get("upwd", "").strip()
@@ -108,6 +113,7 @@ def login():
     if member is None:
         return jsonify({"success": False, "message": "로그인 정보가 올바르지 않습니다."}), 401
 
+    # 로그인 성공 시 세션에 사용자 정보를 저장한다.
     session["uid"] = member["uid"]
     session["uname"] = member["uname"]
     return jsonify(
@@ -121,6 +127,7 @@ def login():
 
 @app.route("/signup", methods=["POST"])
 def signup():
+    # member 테이블에 새 사용자를 등록하고, 성공하면 바로 로그인 처리한다.
     data = request.get_json(silent=True) or {}
     uname = data.get("uname", "").strip()
     uid = data.get("uid", "").strip()
@@ -143,6 +150,7 @@ def signup():
         )
         conn.commit()
     except sqlite3.IntegrityError:
+        # uid 컬럼이 UNIQUE이므로 중복 아이디는 IntegrityError로 처리된다.
         conn.close()
         return jsonify({"success": False, "message": "이미 사용 중인 아이디입니다."}), 409
 
@@ -176,6 +184,7 @@ def me():
 
 @app.route("/todos", methods=["GET"])
 def get_todos():
+    # 현재 로그인한 사용자의 Todo만 조회한다.
     auth_error = login_required()
     if auth_error:
         return auth_error
@@ -199,6 +208,7 @@ def get_todos():
 
 @app.route("/todos", methods=["POST"])
 def add_todo():
+    # JSON으로 받은 title을 현재 사용자의 Todo로 저장한다.
     auth_error = login_required()
     if auth_error:
         return auth_error
@@ -240,6 +250,7 @@ def add_todo():
 
 @app.route("/todos/<int:todo_id>", methods=["PUT"])
 def complete_todo(todo_id):
+    # 자신의 Todo만 완료 처리할 수 있도록 uid 조건을 함께 사용한다.
     auth_error = login_required()
     if auth_error:
         return auth_error
@@ -266,6 +277,7 @@ def complete_todo(todo_id):
 
 @app.route("/todos/<int:todo_id>", methods=["DELETE"])
 def delete_todo(todo_id):
+    # 자신의 Todo만 삭제할 수 있도록 uid 조건을 함께 사용한다.
     auth_error = login_required()
     if auth_error:
         return auth_error
